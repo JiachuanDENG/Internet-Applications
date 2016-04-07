@@ -3,5 +3,7 @@
 
 int main(int argc, char *argv[])
 {
-	int sock
+	int sock;
+	struct sockaddr_in echoServAddr;
+	struct sockaddr_in fromAddr
 }
