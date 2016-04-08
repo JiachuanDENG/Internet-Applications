@@ -6,7 +6,7 @@
 //
 //
 
-#include	"ial.h"
+#include "ial.h"
 
 const char *
 Inet_ntop(int family, const void *addrptr, char *strptr, size_t len)
@@ -67,4 +67,85 @@ Sendto(int fd, const void *ptr, size_t nbytes, int flags, const struct sockaddr 
 {
 	if (sendto(fd, ptr, nbytes, flags, sa, salen) != (ssize_t)nbytes)
 		printf("sendto error");
+}
+
+char *
+Fgets(char *ptr, int n, FILE *stream)
+{
+    char *rptr;
+    
+    if ( (rptr = fgets(ptr, n, stream)) == NULL && ferror(stream))
+		printf("fgets error");
+	
+	return (rptr);
+}
+
+void
+Fputs(const char *ptr, FILE *stream)
+{
+	if (fputs(ptr, stream) == EOF)
+		printf("fputs error");
+}
+
+void *
+Malloc(size_t size)
+{
+	void *ptr;
+
+	if( (ptr = malloc(size)) == NULL)
+		printf("malloc error");
+	return(ptr);
+}
+
+void
+Getsockname(int fd, struct sockaddr *sa, socklen_t *salenptr)
+{
+    if (getsockname(fd, sa, salenptr) < 0)
+        printf("getsockname error");
+}
+
+void
+Connect(int fd, const struct sockaddr *sa, socklen_t salen)
+{
+    if (connect(fd, sa, salen) < 0)
+        printf("connect error");
+}
+
+int
+Accept(int fd, struct sockaddr *sa, socklen_t *salenptr)
+{
+    int		n;
+    
+again:
+    if ( (n = accept(fd, sa, salenptr)) < 0) {
+#ifdef	EPROTO
+        if (errno == EPROTO || errno == ECONNABORTED)
+#else
+            if (errno == ECONNABORTED)
+#endif
+                goto again;
+            else
+                printf("accept error");
+    }
+    return(n);
+}
+
+void
+Listen(int fd, int backlog)
+{
+    char	*ptr;
+    
+    /*4can override 2nd argument with environment variable */
+    if ( (ptr = getenv("LISTENQ")) != NULL)
+        backlog = atoi(ptr);
+    
+    if (listen(fd, backlog) < 0)
+        printf("listen error");
+}
+
+void
+Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen)
+{
+    if (setsockopt(fd, level, optname, optval, optlen) < 0)
+        printf("setsockopt error");
 }

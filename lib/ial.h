@@ -10,9 +10,12 @@
 #include <stdlib.h>		/* for atoi() and exit() */
 #include <string.h>		/* for memset() */
 
+#include <errno.h>
 #include <netdb.h>		/*  */
 #include <unistd.h>		/* for close() */
 
+#include <sys/select.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>	/* for socket(), sendto() and recvfrom() */
 
@@ -20,6 +23,8 @@
 
 
 #define ECHOMAX 255		/* Longest string to echo */
+
+#define	LISTENQ		1024
 
 /* Miscellaneouis constants */
 #define MAXLINE 4096	/* max text line length */

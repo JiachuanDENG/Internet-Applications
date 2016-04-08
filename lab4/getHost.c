@@ -12,8 +12,7 @@
 int main(int argc, char **argv)
 {
 	char *ptr, **pptr;
-	char buf[8192];
-    struct hostent *hptr;
+	struct hostent *hptr;
 	struct in_addr inaddr;
 
 	while (--argc > 0)
