@@ -149,3 +149,10 @@ Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen)
     if (setsockopt(fd, level, optname, optval, optlen) < 0)
         printf("setsockopt error");
 }
+
+void
+Close(int fd)
+{
+	if (close(fd) == -1)
+		printf("close error");
+}
