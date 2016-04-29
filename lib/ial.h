@@ -36,5 +36,3 @@
 
 /* Following shortens all the typecasts of pointer arguments: */
 #define SA struct sockaddr
-
-

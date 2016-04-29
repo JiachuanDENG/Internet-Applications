@@ -8,6 +8,89 @@
 
 #include "ial.h"
 
+
+int
+Accept(int fd, struct sockaddr *sa, socklen_t *salenptr)
+{
+    int		n;
+    
+again:
+    if ( (n = accept(fd, sa, salenptr)) < 0) {
+#ifdef	EPROTO
+        if (errno == EPROTO || errno == ECONNABORTED)
+#else
+            if (errno == ECONNABORTED)
+#endif
+                goto again;
+            else
+                printf("accept error");
+    }
+    return(n);
+}
+
+void
+Bind(int fd, const struct sockaddr *sa, socklen_t salen)
+{
+	if ( bind(fd, sa, salen) < 0) 
+	{
+		printf("bind error: %s(errno: %d)\n", strerror(errno), errno);
+		eixt(0);
+	}
+}
+
+void
+Close(int fd)
+{
+	if (close(fd) == -1)
+		printf("close error");
+}
+
+void
+Connect(int fd, const struct sockaddr *sa, socklen_t salen)
+{
+    if (connect(fd, sa, salen) < 0)
+	{
+		printf("accept error: %s(errno: %d)", strerror(errno), errno);
+		continue;
+	}
+}
+
+char *
+Fgets(char *ptr, int n, FILE *stream)
+{
+    char *rptr;
+    
+    if ( (rptr = fgets(ptr, n, stream)) == NULL && ferror(stream))
+		printf("fgets error");
+	
+	return (rptr);
+}
+
+pid_t
+Fork(void)
+{
+    pid_t pid;
+    
+    if ( (pid = fork()) == -1)
+        printf("fork error");
+    
+    return (pid);
+}
+
+void
+Fputs(const char *ptr, FILE *stream)
+{
+	if (fputs(ptr, stream) == EOF)
+		printf("fputs error");
+}
+
+void
+Getsockname(int fd, struct sockaddr *sa, socklen_t *salenptr)
+{
+    if (getsockname(fd, sa, salenptr) < 0)
+        printf("getsockname error");
+}
+
 const char *
 Inet_ntop(int family, const void *addrptr, char *strptr, size_t len)
 {
@@ -33,22 +116,29 @@ Inet_pton(int family, const char *strptr, void *addrptr)
 	/* nothing to return */
 }
 
-int
-Socket(int family, int type, int protocol)
+void
+Listen(int fd, int backlog)
 {
-	int n;
-	
-	if ( (n = socket(family, type, protocol)) < 0)
-		printf("socket error");
-	
-	return(n);
+    char	*ptr;
+    
+    /*4can override 2nd argument with environment variable */
+    if ( (ptr = getenv("LISTENQ")) != NULL)
+        backlog = atoi(ptr);
+    
+    if (listen(fd, backlog) < 0)
+	{
+        printf("listen error: %s(errno: %d)\n", strerror(erno), errno);
+		exit(0);
 }
 
-void
-Bind(int fd, const struct sockaddr *sa, socklen_t salen)
+void *
+Malloc(size_t size)
 {
-	if (bind(fd, sa, salen) < 0)
-		printf("bind error");
+	void *ptr;
+
+	if( (ptr = malloc(size)) == NULL)
+		printf("malloc error");
+	return(ptr);
 }
 
 ssize_t
@@ -69,80 +159,6 @@ Sendto(int fd, const void *ptr, size_t nbytes, int flags, const struct sockaddr 
 		printf("sendto error");
 }
 
-char *
-Fgets(char *ptr, int n, FILE *stream)
-{
-    char *rptr;
-    
-    if ( (rptr = fgets(ptr, n, stream)) == NULL && ferror(stream))
-		printf("fgets error");
-	
-	return (rptr);
-}
-
-void
-Fputs(const char *ptr, FILE *stream)
-{
-	if (fputs(ptr, stream) == EOF)
-		printf("fputs error");
-}
-
-void *
-Malloc(size_t size)
-{
-	void *ptr;
-
-	if( (ptr = malloc(size)) == NULL)
-		printf("malloc error");
-	return(ptr);
-}
-
-void
-Getsockname(int fd, struct sockaddr *sa, socklen_t *salenptr)
-{
-    if (getsockname(fd, sa, salenptr) < 0)
-        printf("getsockname error");
-}
-
-void
-Connect(int fd, const struct sockaddr *sa, socklen_t salen)
-{
-    if (connect(fd, sa, salen) < 0)
-        printf("connect error");
-}
-
-int
-Accept(int fd, struct sockaddr *sa, socklen_t *salenptr)
-{
-    int		n;
-    
-again:
-    if ( (n = accept(fd, sa, salenptr)) < 0) {
-#ifdef	EPROTO
-        if (errno == EPROTO || errno == ECONNABORTED)
-#else
-            if (errno == ECONNABORTED)
-#endif
-                goto again;
-            else
-                printf("accept error");
-    }
-    return(n);
-}
-
-void
-Listen(int fd, int backlog)
-{
-    char	*ptr;
-    
-    /*4can override 2nd argument with environment variable */
-    if ( (ptr = getenv("LISTENQ")) != NULL)
-        backlog = atoi(ptr);
-    
-    if (listen(fd, backlog) < 0)
-        printf("listen error");
-}
-
 void
 Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen)
 {
@@ -150,9 +166,18 @@ Setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen)
         printf("setsockopt error");
 }
 
-void
-Close(int fd)
+int
+Socket(int family, int type, int protocol)
 {
-	if (close(fd) == -1)
-		printf("close error");
+	int n;
+	
+	if ( (n = socket(family, type, protocol)) < 0)
+	{
+		printf("socket error: %s(errno: %d)\n", strerror(errno), errno);
+		exit(0);
+	
+	}
+	
+	return(n);
 }
+
