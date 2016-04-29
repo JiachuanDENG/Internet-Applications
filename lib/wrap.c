@@ -6,7 +6,6 @@
 //
 //
 
-#include "ial.h"
 
 
 int
@@ -34,7 +33,7 @@ Bind(int fd, const struct sockaddr *sa, socklen_t salen)
 	if ( bind(fd, sa, salen) < 0) 
 	{
 		printf("bind error: %s(errno: %d)\n", strerror(errno), errno);
-		eixt(0);
+		exit(0);
 	}
 }
 
@@ -51,7 +50,7 @@ Connect(int fd, const struct sockaddr *sa, socklen_t salen)
     if (connect(fd, sa, salen) < 0)
 	{
 		printf("accept error: %s(errno: %d)", strerror(errno), errno);
-		continue;
+        exit(0);
 	}
 }
 
@@ -127,8 +126,9 @@ Listen(int fd, int backlog)
     
     if (listen(fd, backlog) < 0)
 	{
-        printf("listen error: %s(errno: %d)\n", strerror(erno), errno);
+        printf("listen error: %s(errno: %d)\n", strerror(errno), errno);
 		exit(0);
+    }
 }
 
 void *
@@ -142,6 +142,16 @@ Malloc(size_t size)
 }
 
 ssize_t
+Recv(int fd, void *ptr, size_t nbytes, int flags)
+{
+    ssize_t		n;
+    
+    if ( (n = recv(fd, ptr, nbytes, flags)) < 0)
+        printf("recv error");
+    return(n);
+}
+
+ssize_t
 Recvfrom(int fd, void *ptr, size_t nbytes, int flags, struct sockaddr *sa, socklen_t *salenptr)
 {
 	ssize_t n;
@@ -150,6 +160,13 @@ Recvfrom(int fd, void *ptr, size_t nbytes, int flags, struct sockaddr *sa, sockl
 		printf("recvfrom error");
 	
 	return(n);
+}
+
+void
+Send(int fd, const void *ptr, size_t nbytes, int flags)
+{
+    if (send(fd, ptr, nbytes, flags) != (ssize_t)nbytes)
+        printf("send error");
 }
 
 void

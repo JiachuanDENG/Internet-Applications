@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <netdb.h>		/*  */
 #include <unistd.h>		/* for close() */
+#include <netinet/in.h>
 
 #include <sys/select.h>
 #include <sys/time.h>

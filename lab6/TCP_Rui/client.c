@@ -119,7 +119,7 @@ int upload(){
 
         printf("Uploading......\n");
 
-        str = readf("/Users/Rui/Desktop/tcp/temp.txt");
+        str = readf("/Users/Victoria/GitHub/Internet-Applications/lab6/tmp1");
         //printf("%s\n", str);
 
         //fgets(sendline, 4096, stdin);
