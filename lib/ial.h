@@ -1,10 +1,11 @@
-//
-//  ial.h
-//
-//
-//  Created by Victoria Mengqi LIU on 4/1/16.
-//
-//
+/*
+ * ial.h
+ *
+ * Author: Victoria Mengqi LIU
+ * Language: C
+ * Date: 29/4/16
+ * Version 1.6
+ */
 
 #include <stdio.h>		/* for printf() and fprintf() */
 #include <stdlib.h>		/* for atoi() and exit() */

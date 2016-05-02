@@ -1,10 +1,34 @@
-//	try_srv01.c
-//
-//	Author: Victoria Mengqi LIU
+/*
+ * tcpsrv.c
+ *
+ * Author: Victoria Mengqi LIU
+ * Compile: gcc -o srv tcpsrv.c
+ * Usage: ./srv
+ * Date: 29/4/16
+ * Version 1.3
+ */
 
 #include "../lib/ial.h"
 #include "../lib/wrap.c"
 #include "../lib/writen.c"
+
+int checkCMD(char* cmd)
+{
+    printf("CMD %s\n", cmd);
+    
+    
+    if(strcmp(cmd, "#n aaa")==0){
+        printf("test a\n" );
+        return 1;
+    }
+    
+    if(strcmp(cmd, "#p 123")==0){
+        printf("testb\n" );
+        return 2;
+    }
+    
+    return 0;
+}
 
 int main(int argc, char **argv)
 {
@@ -35,11 +59,36 @@ int main(int argc, char **argv)
         
         printf("RECVING...");
         
-        writen("/Users/Victoria/GitHub/Internet-Applications/lab6/tmp2", buff);
-        Send(connfd, "THIS IS VICKY'S SERVER", strlen("THIS IS VICKY'S SERVER"), 0);
+        if (checkCMD(buff) >= 1)
+        {
+            send(connfd, "BINGO", strlen("BINGO"), 0);
+            close(connfd);
+            continue;
+        }
         
-		Close(connfd);
-        continue;
+        
+        if (checkCMD(buff) == 0)
+        {
+            writen("/Users/Victoria/GitHub/Internet-Applications/lab6/tmp1", buff);
+            send(connfd, "THIS IS VICKY'S SERVER", strlen("THIS IS VICKY'S SERVER"), 0);
+            close(connfd);
+            continue;
+
+        }
+        
+        if (checkCMD(buff) <= 1)
+        {
+            send(connfd, "Ops", strlen("Ops"), 0);
+            close(connfd);
+            continue;
+        }
+        
+//        writen("/Users/Victoria/GitHub/Internet-Applications/lab6/tmp1", buff);
+//        send(connfd, "THIS IS VICKY'S SERVER", strlen("THIS IS VICKY'S SERVER"), 0);
+//        close(connfd);
+//        continue;
+
+        
 	}
     
     Close(listenfd);

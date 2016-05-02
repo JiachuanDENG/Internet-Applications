@@ -1,12 +1,13 @@
-//
-//  wrap.c
-//
-//
-//  Created by Victoria Mengqi LIU on 4/1/16.
-//
-//
+/*
+ * wrap.c
+ *
+ * Author: Victoria Mengqi LIU
+ * Language: C
+ * Date: 29/4/16
+ * Version 2.0
+ */
 
-
+#include "ial.h"
 
 int
 Accept(int fd, struct sockaddr *sa, socklen_t *salenptr)

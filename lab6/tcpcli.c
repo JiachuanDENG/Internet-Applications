@@ -1,4 +1,12 @@
-// try_cli01.c
+/*
+ * tcpcli.c
+ *
+ * Author: Victoria Mengqi LIU
+ * Compile: gcc -o cli tcpcli.c
+ * Usage: ./cli localhost
+ * Date: 29/4/16
+ * Version 1.3
+*/
 #include "../lib/ial.h"
 #include "../lib/wrap.c"
 #include "../lib/readn.c"
