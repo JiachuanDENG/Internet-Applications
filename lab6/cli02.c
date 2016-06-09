@@ -28,18 +28,21 @@ void * get_in_addr(struct sockaddr * sa)
 int main(int argc, char * argv[])
 {
     struct addrinfo hints, * res, * p;
-    int status, sockfd, bytes_receive;
-    const char * srvport, * dir;
-    char ipstr[INET6_ADDRSTRLEN];
+    int status, sockfd, bytes_recv, bytes_send;
+    const char * srvport, * dir, * n_dir;
+    char ipstr[INET6_ADDRSTRLEN], recvline[MAXLINE];
 
+    
     if ( strcmp(argv[1], "-h") == 0 ) {
         if ( strcmp(argv[3], "-f") == 0 ) {
             srvport = PORT;
             dir = argv[4];
+            n_dir = argv[5];
         } else if ( strcmp(argv[3], "-p") == 0 ) {
             if ( strcmp(argv[5], "-f") == 0 ) {
                 srvport = argv[4];
                 dir = argv[6];
+                n_dir = argv[7];
             }
         }
     } else {
@@ -47,19 +50,21 @@ int main(int argc, char * argv[])
         exit(1);
     }
 
+    
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
+    
     if ( (status = getaddrinfo(argv[2], PORT, &hints, &res)) != 0) {
         fprintf(stderr, "[cli] getaddrinfo: %s\n", gai_strerror(status));
         return 1;
     }
 
+    
     for (p = res; p != NULL; p = p->ai_next) {
         // socket
-        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if ( sockfd == -1 ) {
+        if ( (sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1 ) {
             perror("[cli] socket");
             continue;
         }
@@ -74,12 +79,15 @@ int main(int argc, char * argv[])
         break;
     }
 
+    
     if (p == NULL) {
         fprintf(stderr, "[cli] failed to create socket");
         return 2;
     }
     
+    
     freeaddrinfo(res);
+    
     
     printf("\ntcpcli: connect to server %s socket %d\n",
            inet_ntop(p->ai_family,
@@ -87,16 +95,24 @@ int main(int argc, char * argv[])
                      ipstr, sizeof ipstr),
            sockfd);
     
-    if ( send(sockfd, dir, sizeof dir, 0) == -1 ) {
+    printf("tcpcli: send %lu bytes to server: %s\n", strlen(dir), dir);
+    if ( send(sockfd, dir, bytes_send, 0) == -1 ) {
         perror("[cli] send");
         exit(1);
     }
     
-//    while(1) {
-//        
-//    }
+    FILE *file = fopen(n_dir, "ab");
     
+    bytes_recv = recv(sockfd, recvline, MAXLINE, 0);
+    while ( (bytes_recv = recv(sockfd, recvline, MAXLINE, 0)) > 1 ) {
+        fputs(recvline, file);
+    }
+    
+    fclose(file);
     close(sockfd);
+    
+    printf("FILE TRANSFER SUCCESS!\n");
+    
     return 0;
 }
 

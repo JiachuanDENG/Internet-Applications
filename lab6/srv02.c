@@ -16,7 +16,7 @@
 #include <stdlib.h>
 
 #define PORT "8260"
-#define MAXLINE 10
+#define MAXLINE 4096
 #define BACKLOG 10
 
 void * get_in_addr(struct sockaddr * sa)
@@ -31,18 +31,20 @@ int main(int argc, char * argv[])
 {
     struct addrinfo hints, *res, *p;
     int status, sockfd, acceptfd;
-    int bytes_recv, bytes_sent;
+    int bytes_recv, bytes_sent, readf_len;
     int yes = 1;
     const char *srvport;
     struct sockaddr_storage cli_addr;
     socklen_t cli_addrlen;
-    char ipstr[INET6_ADDRSTRLEN], recvline[MAXLINE];
+    char ch, ipstr[INET6_ADDRSTRLEN], readcli[MAXLINE], readf[MAXLINE];
 
+    
     memset(&hints, 0, sizeof hints);
     hints.ai_flags = AI_PASSIVE;
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
+    
     if (argc == 1) {
         srvport = PORT;
     } else if (argc == 3) {
@@ -52,15 +54,16 @@ int main(int argc, char * argv[])
         exit(1);
     }
     
+    
     if ( (status = getaddrinfo(NULL, srvport, &hints, &res)) != 0) {
         fprintf(stderr, "[srv] getaddrinfo: %s\n", gai_strerror(status));
         return 1;
     }
 
+    
     for (p = res; p != NULL; p = p->ai_next) {
         // socket
-        sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if ( sockfd == -1 ) {
+        if ( (sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1 ) {
             perror("[srv] socket");
             continue;
         }
@@ -78,13 +81,16 @@ int main(int argc, char * argv[])
         break;
     }
 
+    
     freeaddrinfo(res);
+    
     
     if (p == NULL) {
         fprintf(stderr, "[srv] failed to bind socket\n");
         exit(1);
     }
 
+    
     // listen
     if ( listen(sockfd, BACKLOG) == -1 ) {
         perror("[srv] listen");
@@ -93,36 +99,59 @@ int main(int argc, char * argv[])
 
     printf("\ntcpsrv: waiting for data on port TCP %s\n", srvport);
     
-     while(1) {
-         cli_addrlen = sizeof cli_addr;
-         acceptfd = accept(sockfd, (struct sockaddr *)&cli_addr, &cli_addrlen);
-         if ( acceptfd == -1 ) {
-             perror("[srv] accept");
-             exit(1);
-         }
-         
-         printf("\ntcpsrv: from %s socket %d : \n",
+    while(1) {
+        cli_addrlen = sizeof cli_addr;
+        if ( (acceptfd = accept(sockfd, (struct sockaddr *)&cli_addr, &cli_addrlen)) == -1 ) {
+            perror("[srv] accept");
+            exit(1);
+        }
+        
+        printf("\ntcpsrv: from %s socket : %d\n",
                 inet_ntop(cli_addr.ss_family,
                           get_in_addr((struct sockaddr *)&cli_addr),
-                          ipstr, sizeof ipstr),
+                          ipstr, INET6_ADDRSTRLEN),
                 acceptfd);
-         
-
-        bytes_recv = recv(acceptfd, recvline, MAXLINE-1, 0);
-        if ( bytes_recv == -1 ) {
+        
+        if ( (bytes_recv = recv(acceptfd, readcli, MAXLINE, 0)) == -1 ) {
             perror("[srv] recv");
             exit(1);
         }
-        recvline[bytes_recv] = '\0';
+        printf("\ntcpsrv: %d bytes received.\n", bytes_recv);
 
-        printf("tcpsrv: recv %d bytes from socket %d : %s\n", bytes_recv, acceptfd, recvline);
 
-        if ( send(acceptfd, "TEST SUCCESS", 12, 0) == -1 ) {
-            perror("[srv] send");
-            exit(1);
+        printf("readcli: %s\n", readcli);
+        FILE *file = fopen(readcli, "rb");
+        if (file == NULL) {
+            if ( send(acceptfd, "\ntcpsrv: No such file\n", 22, 0) == -1 ) {
+                close(acceptfd);
+                perror("[srv] send");
+            }
+            perror("[srv] fopen");
+            break;
+        } else {
+            printf("/nFile Open Success....../n");
         }
+//        while ( fgets(readf, MAXLINE, file) != NULL ) {
+//            // send file
+//            if ( (bytes_sent = send(acceptfd, readf, strlen(readf), 0)) == -1 ) {
+//                close(acceptfd);
+//                perror("[srv] send");
+//                exit(1);
+//            }
+//         
+//            printf("\tbytes readf: %d\n\tbytes send: %d\n", readf_len, bytes_sent);
+//        }
+
+        while ( (ch = fgetc(file)) != EOF ) {
+            write(acceptfd, &ch, strlen(&ch));
+        }
+        
+        printf("fgetc() success\n");
+        
+        fclose(file);
     }
     
+    close(acceptfd);
     close(sockfd);
 
     return 0;
