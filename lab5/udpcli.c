@@ -1,40 +1,63 @@
 //
-//  udpcli.c
+// Author: Victoria Mengqi LIU
 //
-//
-//  Created by Victoria Mengqi LIU on 4/8/16.
-//
+// Date: 29/05/16
 //
 
-#include "../lib/ial.h"
-#include "../lib/wrap.c"
-#include "../lib/datagram.c"
-#include "../lib/sock_ntop.c"
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <netdb.h>
 
-int
-main(int argc, char **argv)
+#define SRVPORT "6280"
+
+int main(int argc, char * argv[])
 {
-    int					sockfd;
-    socklen_t			len;
-    struct sockaddr_in	cliaddr, servaddr;
-    
-    if (argc != 2)
-    {
-        printf("usage: udpcli <IPaddress>");
+    struct addrinfo hints, * res, * p;
+    int status, sockfd;
+    int numbytes;
+
+    if (argc != 3) {
+        fprintf(stderr, "[cli] usage: udpcli <server IP> <message>\n");
         exit(1);
     }
-    
-    sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
-    bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(SERV_PORT);
-    
-    Inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
-    Connect(sockfd, (SA *) &servaddr, sizeof(servaddr));
-    
-    len = sizeof(cliaddr);
-    Getsockname(sockfd, (SA *) &cliaddr, &len);
-    printf("local address %s\n", Sock_ntop((SA *) &cliaddr, len));
-    
-    exit(0);
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    if ( (status = getaddrinfo(argv[1], SRVPORT, &hints, &res)) != 0) {
+        fprintf(stderr, "[cli] getaddrinfo: %s\n", gai_strerror(status));
+        return 1;
+    }
+
+    for (p = res; p != NULL; p = p->ai_next) {
+        if ( (sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
+            perror("[cli] socket");
+            continue;
+        }
+        
+        break;
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "[cli] failed to create socket");
+        return 2;
+    }
+
+    if ( (numbytes = sendto(sockfd, argv[2], strlen(argv[2]), 0, p->ai_addr, p->ai_addrlen)) == -1) {
+        perror("[cli] sendto");
+        exit(1);
+    }
+
+    freeaddrinfo(res);
+
+    printf("talker: sent %d bytes to %s\n", numbytes, argv[1]);
+    close(sockfd);
+
+    return 0;
 }
+
