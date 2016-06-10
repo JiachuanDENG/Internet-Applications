@@ -140,10 +140,21 @@ Victoria Mengqi LIU
 =======
 
 #### FILE
-
+ 
 =======
 
 	char *
 	fgets(char *s, int size, FILE * stream);   
 	
 =======
+
+#### STRUCT
+
+    struct sockaddr_in
+    {
+        short sin_family;    /* must be AS_INET  */
+        u_short sin_port;
+        struct in_addr sin_addr;
+        char sin_zero[8];    /* Not used, must be zero */
+    };
+
