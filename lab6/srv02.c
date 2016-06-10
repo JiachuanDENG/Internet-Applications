@@ -19,6 +19,13 @@
 #define MAXLINE 4096
 #define BACKLOG 10
 
+void error(const char *msg)
+{
+    perror(msg);
+    exit(0);
+}
+
+
 void * get_in_addr(struct sockaddr * sa)
 {
     if (sa->sa_family == AF_INET) {
@@ -27,22 +34,49 @@ void * get_in_addr(struct sockaddr * sa)
     return &(((struct sockaddr_in6 *)sa)->sin6_addr);
 }
 
+
+void stream_srv(int sockfd)
+{
+    char buf[MAXLINE];
+    int bytes_read, bytes_write;
+    
+    while(1) {
+        memset(buf, 0, sizeof buf);
+        bytes_read = read(sockfd, buf, sizeof buf);
+        if ( bytes_read < 0 ) error("[srv] read");
+        
+        if ( strcmp(buf, "bye") == 0 ) {
+            close(sockfd);
+            break;
+        }
+        
+
+        FILE *file = fopen(buf, "rb");
+        if ( file == NULL ) error("[srv] fopen");
+        printf("\ntcpsrv: file %s opened success...\n", buf);
+        
+        memset(buf, 0, sizeof buf);
+        while ( fgets(buf, MAXLINE-1, file) != NULL ) {
+            bytes_write = write(sockfd, buf, sizeof buf);
+            if ( bytes_write < 0 ) error("[srv] write");
+            printf("\t%d bytes transfered\n", bytes_write);
+            memset(buf, 0, sizeof buf);
+        }
+        fclose(file);
+    }
+}
+
+
 int main(int argc, char * argv[])
 {
+    signal(SIGCHLD, SIG_IGN);
     struct addrinfo hints, *res, *p;
-    int status, sockfd, acceptfd;
-    int bytes_recv, bytes_sent, readf_len;
-    int yes = 1;
+    int status, sockfd, newsockfd, pid;
+    int optval = 1;
     const char *srvport;
     struct sockaddr_storage cli_addr;
     socklen_t cli_addrlen;
-    char ch, ipstr[INET6_ADDRSTRLEN], readcli[MAXLINE], readf[MAXLINE];
-
-    
-    memset(&hints, 0, sizeof hints);
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
+    char ipstr[INET6_ADDRSTRLEN];
 
     
     if (argc == 1) {
@@ -55,6 +89,12 @@ int main(int argc, char * argv[])
     }
     
     
+    memset(&hints, 0, sizeof hints);
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    
+    
     if ( (status = getaddrinfo(NULL, srvport, &hints, &res)) != 0) {
         fprintf(stderr, "[srv] getaddrinfo: %s\n", gai_strerror(status));
         return 1;
@@ -62,17 +102,14 @@ int main(int argc, char * argv[])
 
     
     for (p = res; p != NULL; p = p->ai_next) {
-        // socket
         if ( (sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1 ) {
             perror("[srv] socket");
             continue;
         }
 
-        // setsockopt
-        setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+        setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
 
-        // bind
-        if ( bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+        if ( bind(sockfd, p->ai_addr, p->ai_addrlen) == -1 ) {
             close(sockfd);
             perror("[srv] bind");
             continue;
@@ -80,81 +117,39 @@ int main(int argc, char * argv[])
 
         break;
     }
-
+    
     
     freeaddrinfo(res);
-    
-    
     if (p == NULL) {
         fprintf(stderr, "[srv] failed to bind socket\n");
         exit(1);
     }
+    printf("\ntcpsrv: socket %d waiting for data on port TCP %s\n", sockfd, srvport);
 
     
-    // listen
-    if ( listen(sockfd, BACKLOG) == -1 ) {
-        perror("[srv] listen");
-        exit(1);
-    }
+    if ( listen(sockfd, BACKLOG) == -1 ) error("[srv] listen");
 
-    printf("\ntcpsrv: waiting for data on port TCP %s\n", srvport);
     
+    cli_addrlen = sizeof cli_addr;
     while(1) {
-        cli_addrlen = sizeof cli_addr;
-        if ( (acceptfd = accept(sockfd, (struct sockaddr *)&cli_addr, &cli_addrlen)) == -1 ) {
-            perror("[srv] accept");
-            exit(1);
-        }
+        newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &cli_addrlen);
+        if ( newsockfd == -1 ) error("[srv] accept");
         
-        printf("\ntcpsrv: from %s socket : %d\n",
-                inet_ntop(cli_addr.ss_family,
+        printf("\ntcpsrv: accept new socket %d from client %s\n",
+               newsockfd,
+               inet_ntop(cli_addr.ss_family,
                           get_in_addr((struct sockaddr *)&cli_addr),
-                          ipstr, INET6_ADDRSTRLEN),
-                acceptfd);
+                         ipstr, sizeof ipstr));
         
-        if ( (bytes_recv = recv(acceptfd, readcli, MAXLINE, 0)) == -1 ) {
-            perror("[srv] recv");
-            exit(1);
-        }
-        printf("\ntcpsrv: %d bytes received.\n", bytes_recv);
-
-
-        printf("readcli: %s\n", readcli);
-        FILE *file = fopen(readcli, "rb");
-        if (file == NULL) {
-            if ( send(acceptfd, "\ntcpsrv: No such file\n", 22, 0) == -1 ) {
-                close(acceptfd);
-                perror("[srv] send");
-            }
-            perror("[srv] fopen");
-            break;
-        } else {
-            printf("/nFile Open Success....../n");
-        }
-//        while ( fgets(readf, MAXLINE, file) != NULL ) {
-//            // send file
-//            if ( (bytes_sent = send(acceptfd, readf, strlen(readf), 0)) == -1 ) {
-//                close(acceptfd);
-//                perror("[srv] send");
-//                exit(1);
-//            }
-//         
-//            printf("\tbytes readf: %d\n\tbytes send: %d\n", readf_len, bytes_sent);
-//        }
-
-        while ( (ch = fgetc(file)) != EOF ) {
-            write(acceptfd, &ch, strlen(&ch));
-        }
-        
-        printf("fgetc() success\n");
-        
-        fclose(file);
+        pid = fork();
+        if ( pid == -1 ) error("[srv] fork");
+        if ( pid == 0 ) {
+            close(sockfd);
+            stream_srv(newsockfd);
+            exit(0);
+        } else close(newsockfd);
     }
     
-    close(acceptfd);
     close(sockfd);
-
     return 0;
 }
-       
-
