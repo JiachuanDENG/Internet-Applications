@@ -15,7 +15,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-#define PORT "8260"
+#define PORT "6280"
 #define MAXLINE 4096
 #define BACKLOG 10
 
@@ -95,18 +95,26 @@ int main(int argc, char * argv[])
     hints.ai_socktype = SOCK_STREAM;
     
     
-    if ( (status = getaddrinfo(NULL, srvport, &hints, &res)) != 0) {
+    // int
+    // getaddrinfo(const char *hostname, const char *servname,
+    //     const struct addrinfo *hints, struct addrinfo **res);
+    if ( (status = getaddrinfo(NULL, srvport, &hints, &res)) != 0 ) {
         fprintf(stderr, "[srv] getaddrinfo: %s\n", gai_strerror(status));
         return 1;
     }
 
     
     for (p = res; p != NULL; p = p->ai_next) {
+        // int
+        // socket(int domain, int type, int protocol);
         if ( (sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1 ) {
             perror("[srv] socket");
             continue;
         }
 
+        // int
+        // setsockopt(int socket, int level, int option_name,
+        //     const void *option_value, socklen_t option_len);
         setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
 
         if ( bind(sockfd, p->ai_addr, p->ai_addrlen) == -1 ) {

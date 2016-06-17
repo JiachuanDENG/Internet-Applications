@@ -14,7 +14,7 @@
 #include <string.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-#define PORT "8260"
+#define PORT "6280"
 #define MAXLINE 4096
 
 
