@@ -20,9 +20,9 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 
-#define CLI "172.20.10.3"
-#define SRV "172.20.10.3"
-// #define IP "172.20.10.3"     // PROXY NAT "10.211.55.3" Host-only "10.37.129.4"
+#define CLI "172.20.10.11"
+#define SRV "172.20.10.11"
+// #define IP "172.20.10.11"     // PROXY NAT "10.211.55.3" Host-only "10.37.129.3"
 #define PROXY_CMD_PORT "21"
 #define ACCEPT_CMD_PORT "21"
 #define CONNECT_DATA_PORT "20"
@@ -37,9 +37,6 @@
 #define BACKLOG 10
 
 
-struct addrinfo hints, *res, *p;
-int status;
-int sockfd;
 int connect_cmd_port = 6280;
 int proxy_data_port = 8260;
 int proxy_data_mode;
@@ -65,6 +62,9 @@ void *get_in_addr(struct sockaddr *sa)
 
 int bindAndListenSocket(char *port)
 {
+    struct addrinfo hints, *res, *p;
+    int status;
+    int sockfd;
     int optval = 1;         // for setsockopt() SO_REUSEADDR
     
     
@@ -114,6 +114,10 @@ int bindAndListenSocket(char *port)
 
 int connectTo(char *ip, char *port)
 {
+    struct addrinfo hints, *res, *p;
+    int status;
+    int sockfd;
+    
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -203,6 +207,20 @@ int isCacheExist(char *file, int proxy_file_mode)
 }
 
 
+int acceptSocket(int sockfd)
+{
+    struct sockaddr_storage remoteaddr;
+    socklen_t addrlen;
+    int newsockfd;
+    
+    addrlen = sizeof remoteaddr;
+    newsockfd = accept(sockfd, (struct sockaddr *)&remoteaddr, &addrlen);
+    if (newsockfd < 0) error("accept");
+    
+    return newsockfd;
+}
+
+
 int main(int argc, const char *argv[])
 {
     fd_set master;
@@ -239,33 +257,19 @@ int main(int argc, const char *argv[])
     
     // main loop
     while (1) {
-        read_fds = master;
-        if ( select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1 ) {
-            perror("select");
-            exit(3);
-        }
+        FD_ZERO(&read_fds);
+        memcpy(&read_fds, &master, sizeof master);
+        if ( select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1 ) error("select");
         
         
         for (i = 0; i < fdmax; i++) {
             if (FD_ISSET(i, &read_fds)) {
                 if (i == proxy_cmd_socket) {
-                    addrlen = sizeof remoteaddr;
-                    accept_cmd_socket = accept(proxy_cmd_socket, (struct sockaddr *)&remoteaddr, &addrlen);
+                    accept_cmd_socket = acceptSocket(proxy_cmd_socket);
                     
-                    if ( accept_cmd_socket == -1 ) {
-                        perror("accept");
-                    } else {
-                        FD_SET(accept_cmd_socket, &master);
-                        if ( accept_cmd_socket > fdmax ) {
-                            fdmax = accept_cmd_socket;
-                        }
-                        
-                        printf("proxy: ACCEPT new CONTROL CONNECTION from %s on "
-                               "socket %d  port %s\n", \
-                               inet_ntop(remoteaddr.ss_family, \
-                                         get_in_addr((struct sockaddr *)&remoteaddr), \
-                                         ipstr, INET6_ADDRSTRLEN), \
-                               accept_cmd_socket, ACCEPT_CMD_PORT);
+                    FD_SET(accept_cmd_socket, &master);
+                    if ( accept_cmd_socket > fdmax ) {
+                        fdmax = accept_cmd_socket;
                     }
                     
                     connect_cmd_socket = connectTo(SRV, SRV_CMD_PORT);
@@ -277,12 +281,7 @@ int main(int argc, const char *argv[])
                 if (i == accept_cmd_socket) {
                     bytes_read = read(i, buf, MAXLINE);
                     
-                    if ( bytes_read <= 0 ) {
-                        if ( bytes_read == 0 ) {
-                            printf("proxy: socket %d hung up\n", i);
-                        } else {
-                            perror("read");
-                        }
+                    if ( bytes_read == 0 ) {
                         close(i);
                         close(connect_cmd_socket);
                         
@@ -305,7 +304,7 @@ int main(int argc, const char *argv[])
                             p1 = atoi(tmp);
                             tmp = strtok(NULL, ",");
                             p2 = atoi(tmp);
-                            sprintf(buf, "PORT 10,37,129,4,%d,%d\n", p1, p2);
+                            sprintf(buf, "PORT 10,37,129,3,%d,%d\n", p1, p2);
                             bytes_read = strlen(buf);
                             proxy_data_mode = PORT;
                             proxy_data_port = p1*256 + p2;
@@ -383,7 +382,7 @@ int main(int argc, const char *argv[])
                                 tmp = strtok(NULL, ",");
                                 p2 = atoi(tmp);
                                 
-                                sprintf(buf, "227 Entering Passive Mode (10,37,129,4,%d,%d)\n", p1, p2);
+                                sprintf(buf, "227 Entering Passive Mode (10,37,129,3,%d,%d)\n", p1, p2);
                                 
                                 bytes_read = strlen(buf);
                                 proxy_data_mode = PASV;
@@ -401,16 +400,11 @@ int main(int argc, const char *argv[])
                 
                 if (i == proxy_data_socket) {
                     if (proxy_data_mode == PORT) {
-                        addrlen = sizeof remoteaddr;
-                        accept_data_socket = accept(proxy_data_socket, (struct sockaddr *)&remoteaddr, &addrlen);
-                        
-                        if ( accept_cmd_socket == -1 ) {
-                            perror("accept");
-                        } else {
-                            FD_SET(accept_data_socket, &master);
-                            if ( accept_cmd_socket > fdmax ) {
-                                fdmax = accept_cmd_socket;
-                            }
+                        accept_data_socket = acceptSocket(proxy_data_socket);
+
+                        FD_SET(accept_data_socket, &master);
+                        if ( accept_cmd_socket > fdmax ) {
+                            fdmax = accept_cmd_socket;
                         }
                         
                         char proxy_data_port = (char) proxy_data_port;
@@ -427,16 +421,11 @@ int main(int argc, const char *argv[])
                         }
                     } else {
                         if (proxy_file_mode != RETR) {
-                            addrlen = sizeof remoteaddr;
-                            accept_data_socket = accept(proxy_data_socket, (struct sockaddr *)&remoteaddr, &addrlen);
+                            accept_data_socket = acceptSocket(proxy_data_socket);
                             
-                            if ( accept_cmd_socket == -1 ) {
-                                perror("accept");
-                            } else {
-                                FD_SET(accept_data_socket, &master);
-                                if ( accept_cmd_socket > fdmax ) {
-                                    fdmax = accept_cmd_socket;
-                                }
+                            FD_SET(accept_data_socket, &master);
+                            if ( accept_cmd_socket > fdmax ) {
+                                fdmax = accept_cmd_socket;
                             }
                             
                             char proxy_data_port = (char) proxy_data_port;
@@ -445,16 +434,10 @@ int main(int argc, const char *argv[])
                             FD_SET(connect_data_socket, &master);
                         } else {
                             if ( isFileExist(file)) {
-                                addrlen = sizeof remoteaddr;
-                                accept_data_socket = accept(proxy_data_socket, (struct sockaddr *)&remoteaddr, &addrlen);
-                                
-                                if ( accept_cmd_socket == -1 ) {
-                                    perror("accept");
-                                } else {
-                                    FD_SET(accept_data_socket, &master);
-                                    if ( accept_cmd_socket > fdmax ) {
-                                        fdmax = accept_cmd_socket;
-                                    }
+                                accept_data_socket = acceptSocket(proxy_data_socket);
+                                FD_SET(accept_data_socket, &master);
+                                if ( accept_cmd_socket > fdmax ) {
+                                    fdmax = accept_cmd_socket;
                                 }
                                 
                                 char prv[200];
@@ -467,16 +450,10 @@ int main(int argc, const char *argv[])
                                 write(accept_cmd_socket, aft, strlen(aft));
                                 close(accept_data_socket);
                             } else {
-                                addrlen = sizeof remoteaddr;
-                                accept_data_socket = accept(proxy_data_socket, (struct sockaddr *)&remoteaddr, &addrlen);
-                                
-                                if ( accept_cmd_socket == -1 ) {
-                                    perror("accept");
-                                } else {
-                                    FD_SET(accept_data_socket, &master);
-                                    if ( accept_cmd_socket > fdmax ) {
-                                        fdmax = accept_cmd_socket;
-                                    }
+                                accept_data_socket = acceptSocket(proxy_data_socket);
+                                FD_SET(accept_data_socket, &master);
+                                if ( accept_cmd_socket > fdmax ) {
+                                    fdmax = accept_cmd_socket;
                                 }
                                 
                                 char proxy_data_port = (char) proxy_data_port;

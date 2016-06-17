@@ -5,13 +5,13 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <fcntl.h>
-#define SERVER "172.20.10.3"
-#define CLIENT "172.20.10.3"
+#define SERVER "172.20.10.11"
+#define CLIENT "172.20.10.11"
 #define PORT 1
 #define PASV 2
 #define STOR 3
 #define RETR 4
-#define BUFFSIZE 600
+#define MAXLINE 600
 
 int bindAndListenSocket(int port) {
 	int sock;
@@ -37,7 +37,7 @@ int bindAndListenSocket(int port) {
 
 int acceptSocket(int proxySock) {
 	struct sockaddr_in addr;
-	int addr_len;
+	socklen_t addr_len;
 	addr_len = sizeof(addr);
 	int sock;
 	sock = accept(proxySock, (struct sockaddr *)&addr, &addr_len);
@@ -69,48 +69,47 @@ int connectTo(char *connect_ip, int port) {
 	return sock;
 }
 
-int ifCache(char *filename, int file_way) {
-	char *wei;
-	char t_name[200];
-	strcpy(t_name, filename);
-	printf("file:%s\n",filename);
-	if (file_way != RETR)
+int isFileExist(char *file) {
+    int fd = open(file, O_RDONLY);
+    if (fd >= 0) {
+        close(fd);
+        return 1;
+    } else {
+        close(fd);
+        return 0;
+    }
+}
+
+int isCacheExist(char *file, int proxy_file_mode) {
+	char *format;
+	char tmp[200];
+	strcpy(tmp, file);
+	printf("file:%s\n",file);
+	if (proxy_file_mode != RETR)
 		return 0;
-	if (strstr(t_name, ".") == NULL)
+	if (strstr(tmp, ".") == NULL)
 		return 0;
-	if (openTestExist(t_name)) {
+	if (isFileExist(tmp)) {
 		return 0;
 	}
-	strtok(t_name, ".");
-	wei = strtok(NULL, ".");
-	if (strcmp(wei, "pdf") == 0 || strcmp(wei, "jpg") == 0 || strcmp(wei, "png") == 0) {
+	strtok(tmp, ".");
+	format = strtok(NULL, ".");
+	if (strcmp(format, "pdf") == 0 || strcmp(format, "jpg") == 0 || strcmp(format, "png") == 0) {
 		return 1;
 	}
 	return 0;
 }
 
-int openTestExist(char *filename) {
-	int fd = open(filename, O_RDONLY);
-	if (fd >= 0) {
-		close(fd);
-		return 1;
-	}
-	if (fd < 0) {
-		close(fd);
-		return 0;
-	}
-}
-
-int readAndSend(char *filename, int socket) {
-	int fd = open(filename, O_RDONLY);
+void proxy_rw(char *file, int socket) {
+	int fd = open(file, O_RDONLY);
 	if (fd < 0) {
 		exit(0);
 	}
 	else {
-		char buff[BUFFSIZE];
+		char buf[MAXLINE];
 		int readn;
-		while ((readn = read(fd, buff, BUFFSIZE)) > 0) {
-			write(socket, buff, readn);
+		while ((readn = read(fd, buf, MAXLINE)) > 0) {
+			write(socket, buf, readn);
 		}
 		close(fd);
 	}
@@ -118,7 +117,7 @@ int readAndSend(char *filename, int socket) {
 
 int main(int argc, const char *argv[])
 {
-	fd_set master_set, working_set;
+	fd_set master, read_fds;
 	struct timeval timeout;
 	int proxy_cmd_socket = 0;
 	int accept_cmd_socket = 0;
@@ -129,23 +128,23 @@ int main(int argc, const char *argv[])
 	int proxy_data_mode;
 	int proxy_data_port;
 	int selectResult = 0;
-	int select_sd = 10;
-	int file_way;
-	int download_cache = 0;
-	int write_file;
-	char cmd_file[200];
+	int fdmax = 10;
+	int proxy_file_mode;
+	int cache = 0;
+	int bytes_creat;
+	char file[200];
 
-	FD_ZERO(&master_set);
+	FD_ZERO(&master);
 	bzero(&timeout, sizeof(timeout));
 	proxy_cmd_socket = bindAndListenSocket(21);
-	FD_SET(proxy_cmd_socket, &master_set);
+	FD_SET(proxy_cmd_socket, &master);
 	timeout.tv_sec = 600;
 	timeout.tv_usec = 0;
 
 	while (1) {
-		FD_ZERO(&working_set);
-		memcpy(&working_set, &master_set, sizeof(master_set));
-		selectResult = select(select_sd, &working_set, NULL, NULL, &timeout);
+		FD_ZERO(&read_fds);
+		memcpy(&read_fds, &master, sizeof(master));
+		selectResult = select(fdmax, &read_fds, NULL, NULL, &timeout);
 		// fail
 		if (selectResult < 0) {
 			perror("select() failed\n");
@@ -157,41 +156,41 @@ int main(int argc, const char *argv[])
 			continue;
 		}		
 		int i;
-		for (i = 0; i < select_sd; i++) {
-			if (FD_ISSET(i, &working_set)) {
+		for (i = 0; i < fdmax; i++) {
+			if (FD_ISSET(i, &read_fds)) {
 				if (i == proxy_cmd_socket) {
-					if (FD_ISSET(connect_cmd_socket, &master_set)) {
+					if (FD_ISSET(connect_cmd_socket, &master)) {
 						close(connect_cmd_socket);
-						FD_CLR(connect_cmd_socket, &master_set);
+						FD_CLR(connect_cmd_socket, &master);
 					}
-					if (FD_ISSET(accept_cmd_socket, &master_set)) {
+					if (FD_ISSET(accept_cmd_socket, &master)) {
 						close(accept_cmd_socket);
-						FD_CLR(accept_cmd_socket, &master_set);
+						FD_CLR(accept_cmd_socket, &master);
 					}
 					connect_cmd_socket = connectTo(SERVER, 21);
 					accept_cmd_socket = acceptSocket(proxy_cmd_socket); 										
-					FD_SET(accept_cmd_socket, &master_set);
-					FD_SET(connect_cmd_socket, &master_set);
+					FD_SET(accept_cmd_socket, &master);
+					FD_SET(connect_cmd_socket, &master);
 				}
 
 				if (i == accept_cmd_socket) {
-					char buff[BUFFSIZE];
-					int read_l;
-					if ((read_l = read(i, buff, BUFFSIZE)) == 0) {
-						FD_CLR(i, &master_set);
-						FD_CLR(connect_cmd_socket, &master_set);
+					char buf[MAXLINE];
+					int bytes_read;
+					if ((bytes_read = read(i, buf, MAXLINE)) == 0) {
+						FD_CLR(i, &master);
+						FD_CLR(connect_cmd_socket, &master);
 						close(i); 
 						close(connect_cmd_socket);
 					}
 					else {
-						if (strncmp(buff, "PORT", 4) == 0) {
-							strtok(buff, ",");
+						if (strncmp(buf, "PORT", 4) == 0) {
+							strtok(buf, ",");
 							strtok(NULL, ",");
 							strtok(NULL, ",");
 							strtok(NULL, ",");
-							if (FD_ISSET(proxy_data_socket, &master_set)) {
+							if (FD_ISSET(proxy_data_socket, &master)) {
 								close(proxy_data_socket);
-								FD_CLR(proxy_data_socket, &master_set);
+								FD_CLR(proxy_data_socket, &master);
 							}
 							char *tsp;
 							int p1, p2;
@@ -199,29 +198,29 @@ int main(int argc, const char *argv[])
 							p1 = atoi(tsp);
 							tsp = strtok(NULL, ",");
 							p2 = atoi(tsp);
-							sprintf(buff, "PORT 10,37,129,4,%d,%d\r\n", p1, p2);
-							read_l = strlen(buff);
+							sprintf(buf, "PORT 10,37,129,3,%d,%d\r\n", p1, p2);
+							bytes_read = strlen(buf);
 							proxy_data_mode = PORT;
 							proxy_data_port = p1 * 256 + p2;
 							proxy_data_socket = bindAndListenSocket(proxy_data_port);
-							FD_SET(proxy_data_socket, &master_set);
+							FD_SET(proxy_data_socket, &master);
 						}
 
 						//RETR
-						if (strncmp(buff, "RETR", 4) == 0) {
-							file_way = RETR;
-							buff[read_l] = '\0';
-							char *name = strtok(buff + 5, "\r");
-							strcpy(cmd_file, name);
-							if (openTestExist(cmd_file)) {
+						if (strncmp(buf, "RETR", 4) == 0) {
+							proxy_file_mode = RETR;
+							buf[bytes_read] = '\0';
+							char *name = strtok(buf + 5, "\r");
+							strcpy(file, name);
+							if (isFileExist(file)) {
 								if (proxy_data_mode == PORT) {
 									char before[200];
 									char after[200];
-									sprintf(before,"150 Opening data channel for file download from server of \"/%s\"\r\n", cmd_file);
+									sprintf(before,"150 Opening data channel for file download from server of \"/%s\"\r\n", file);
 									write(accept_cmd_socket, before, strlen(before));
 									connect_data_socket = connectTo(CLIENT, proxy_data_port);
-									readAndSend(cmd_file, connect_data_socket);
-									sprintf(after, "226 Successfully transferred \"/%s\"\r\n", cmd_file);
+									proxy_rw(file, connect_data_socket);
+									sprintf(after, "226 Successfully transferred \"/%s\"\r\n", file);
 									write(accept_cmd_socket, after, strlen(after));
 									close(connect_data_socket);
 								}
@@ -229,31 +228,31 @@ int main(int argc, const char *argv[])
 							}
 						}
 						//STOR
-						if (strncmp(buff, "STOR", 4) == 0) {
-							file_way = STOR;
+						if (strncmp(buf, "STOR", 4) == 0) {
+							proxy_file_mode = STOR;
 						}
 
-						write(connect_cmd_socket, buff, read_l);
+						write(connect_cmd_socket, buf, bytes_read);
 					}
 				}
 
 				if (i == connect_cmd_socket) {
-					char buff[BUFFSIZE];
-					int read_l;
-					read_l = read(i, buff, BUFFSIZE);
-					if (read_l == 0) {
+					char buf[MAXLINE];
+					int bytes_read;
+					bytes_read = read(i, buf, MAXLINE);
+					if (bytes_read == 0) {
 						close(i); 
-						FD_CLR(i, &master_set);
+						FD_CLR(i, &master);
 						close(accept_cmd_socket);
-						FD_CLR(accept_cmd_socket, &master_set);
+						FD_CLR(accept_cmd_socket, &master);
 					}
 					else {
-						if (strncmp(buff, "227", 3) == 0) {
-							if (FD_ISSET(proxy_data_socket, &master_set)) {
+						if (strncmp(buf, "227", 3) == 0) {
+							if (FD_ISSET(proxy_data_socket, &master)) {
 								close(proxy_data_socket);
-								FD_CLR(proxy_data_socket, &master_set);
+								FD_CLR(proxy_data_socket, &master);
 							}
-							strtok(buff, ",");
+							strtok(buf, ",");
 							strtok(NULL, ",");
 							strtok(NULL, ",");
 							strtok(NULL, ",");
@@ -264,14 +263,14 @@ int main(int argc, const char *argv[])
 							tsp = strtok(NULL, ",");
 							p2 = atoi(tsp);
 
-							sprintf(buff, "227 Entering Passive Mode (10,37,129,4,%d,%d)\r\n", p1, p2);
-							read_l = strlen(buff);
+							sprintf(buf, "227 Entering Passive Mode (10,37,129,3,%d,%d)\r\n", p1, p2);
+							bytes_read = strlen(buf);
 							proxy_data_mode = PASV;
 							proxy_data_port = p1 * 256 + p2;
 							proxy_data_socket = bindAndListenSocket(proxy_data_port);
-							FD_SET(proxy_data_socket, &master_set);
+							FD_SET(proxy_data_socket, &master);
 						}
-						write(accept_cmd_socket, buff, read_l);
+						write(accept_cmd_socket, buf, bytes_read);
 					}
 				}
 
@@ -279,49 +278,49 @@ int main(int argc, const char *argv[])
 					if (proxy_data_mode == PORT) {
 						accept_data_socket = acceptSocket(proxy_data_socket);
 						connect_data_socket = connectTo(CLIENT, proxy_data_port);
-						FD_SET(accept_data_socket, &master_set);
-						FD_SET(connect_data_socket, &master_set);
-						if (!ifCache(cmd_file, file_way)) {
-							download_cache = 0;
+						FD_SET(accept_data_socket, &master);
+						FD_SET(connect_data_socket, &master);
+						if (!isCacheExist(file, proxy_file_mode)) {
+							cache = 0;
 						} else {
-							write_file = creat(cmd_file, 0644);
-							if (write_file < 0) {
+							bytes_creat = creat(file, 0644);
+							if (bytes_creat < 0) {
 								exit(0);
 							}
-							download_cache = 1;
+							cache = 1;
 						}
 					}
 					else {
-						if (file_way != RETR) {
+						if (proxy_file_mode != RETR) {
 							accept_data_socket = acceptSocket(proxy_data_socket);
 							connect_data_socket = connectTo(SERVER, proxy_data_port);
-							FD_SET(accept_data_socket, &master_set);
-							FD_SET(connect_data_socket, &master_set);
+							FD_SET(accept_data_socket, &master);
+							FD_SET(connect_data_socket, &master);
 						}
 						else {
-							if (openTestExist(cmd_file)) {
+							if (isFileExist(file)) {
 								accept_data_socket = acceptSocket(proxy_data_socket);
 								char before[200];
-								sprintf(before, "150 Opening data channel for file download from server of \"/%s\"\r\n", cmd_file);
+								sprintf(before, "150 Opening data channel for file download from server of \"/%s\"\r\n", file);
 								write(accept_cmd_socket, before, strlen(before));
-								readAndSend(cmd_file, accept_data_socket);
+								proxy_rw(file, accept_data_socket);
 								char after[200];
-								sprintf(after, "226 Successfully transferred \"/%s\"\r\n", cmd_file);
+								sprintf(after, "226 Successfully transferred \"/%s\"\r\n", file);
 								write(accept_cmd_socket, after, strlen(after));
 								close(accept_data_socket);
 							}
 							else {
 								connect_data_socket = connectTo(SERVER, proxy_data_port);
 								accept_data_socket = acceptSocket(proxy_data_socket);
-								FD_SET(accept_data_socket, &master_set);
-								FD_SET(connect_data_socket, &master_set);
-								if (!ifCache(cmd_file, file_way)) {
-									download_cache = 0;
+								FD_SET(accept_data_socket, &master);
+								FD_SET(connect_data_socket, &master);
+								if (!isCacheExist(file, proxy_file_mode)) {
+									cache = 0;
 								}
 								else {
-									download_cache = 1;
-									write_file = creat(cmd_file, 0644);
-									if (write_file < 0) {
+									cache = 1;
+									bytes_creat = creat(file, 0644);
+									if (bytes_creat < 0) {
 										exit(0);
 									}
 								}
@@ -331,45 +330,45 @@ int main(int argc, const char *argv[])
 				}
 
 				if (i == accept_data_socket) {
-					char buff[BUFFSIZE];
-					int read_l;
-					read_l = read(i, buff, BUFFSIZE);
-					if (read_l == 0) {
-						if (download_cache) {
-							close(write_file);
+					char buf[MAXLINE];
+					int bytes_read;
+					bytes_read = read(i, buf, MAXLINE);
+					if (bytes_read == 0) {
+						if (cache) {
+							close(bytes_creat);
 						}
 						close(i);
-						FD_CLR(accept_data_socket, &master_set);
+						FD_CLR(accept_data_socket, &master);
 						close(connect_data_socket);
-						FD_CLR(connect_data_socket, &master_set);
+						FD_CLR(connect_data_socket, &master);
 					}
 					else {
-						if (download_cache) {
-							write(write_file, buff, read_l);
+						if (cache) {
+							write(bytes_creat, buf, bytes_read);
 						}
-						write(connect_data_socket, buff, read_l);
+						write(connect_data_socket, buf, bytes_read);
 					}
 
 				}
 
 				if (i == connect_data_socket) {
-					char buff[BUFFSIZE];
-					int read_l;
-					read_l = read(i, buff, BUFFSIZE);
-					if (read_l == 0) {
-						if (download_cache) {
-							close(write_file);
+					char buf[MAXLINE];
+					int bytes_read;
+					bytes_read = read(i, buf, MAXLINE);
+					if (bytes_read == 0) {
+						if (cache) {
+							close(bytes_creat);
 						}
 						close(i);
 						close(accept_data_socket);
-						FD_CLR(accept_data_socket, &master_set);
-						FD_CLR(connect_data_socket, &master_set);
+						FD_CLR(accept_data_socket, &master);
+						FD_CLR(connect_data_socket, &master);
 					}
 					else {
-						if (download_cache) {
-							write(write_file, buff, read_l);
+						if (cache) {
+							write(bytes_creat, buf, bytes_read);
 						}
-						write(accept_data_socket, buff, read_l);
+						write(accept_data_socket, buf, bytes_read);
 					}
 				}
 			}
