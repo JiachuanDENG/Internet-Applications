@@ -20,8 +20,8 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 
-#define CLI "192.168.1.105"
-#define SRV "192.168.1.105"
+#define CLI "172.20.10.3"
+#define SRV "172.20.10.3"
 // #define IP "172.20.10.3"     // PROXY NAT "10.211.55.3" Host-only "10.37.129.4"
 #define PROXY_CMD_PORT "21"
 #define ACCEPT_CMD_PORT "21"
@@ -305,7 +305,7 @@ int main(int argc, const char *argv[])
                             p1 = atoi(tmp);
                             tmp = strtok(NULL, ",");
                             p2 = atoi(tmp);
-                            sprintf(buf, "PORT 192,168,1,105,%d,%d\n", p1, p2);
+                            sprintf(buf, "PORT 10,37,129,4,%d,%d\n", p1, p2);
                             bytes_read = strlen(buf);
                             proxy_data_mode = PORT;
                             proxy_data_port = p1*256 + p2;

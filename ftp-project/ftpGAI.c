@@ -5,8 +5,8 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <fcntl.h>
-#define SERVER "192.168.56.1"
-#define CLIENT "192.168.56.1"
+#define SERVER "172.20.10.3"
+#define CLIENT "172.20.10.3"
 #define PORT 1
 #define PASV 2
 #define STOR 3
@@ -199,7 +199,7 @@ int main(int argc, const char *argv[])
 							p1 = atoi(tsp);
 							tsp = strtok(NULL, ",");
 							p2 = atoi(tsp);
-							sprintf(buff, "PORT 192,168,56,101,%d,%d\r\n", p1, p2);
+							sprintf(buff, "PORT 10,37,129,4,%d,%d\r\n", p1, p2);
 							read_l = strlen(buff);
 							proxy_data_mode = PORT;
 							proxy_data_port = p1 * 256 + p2;
@@ -264,7 +264,7 @@ int main(int argc, const char *argv[])
 							tsp = strtok(NULL, ",");
 							p2 = atoi(tsp);
 
-							sprintf(buff, "227 Entering Passive Mode (192,168,56,101,%d,%d)\r\n", p1, p2);
+							sprintf(buff, "227 Entering Passive Mode (10,37,129,4,%d,%d)\r\n", p1, p2);
 							read_l = strlen(buff);
 							proxy_data_mode = PASV;
 							proxy_data_port = p1 * 256 + p2;
