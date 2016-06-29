@@ -150,6 +150,8 @@ Victoria Mengqi LIU
 
 #### STRUCT
 
+
+    /******* INTERNET-SPECIFIC  SOCKET ADDRESS *******/
     struct sockaddr_in
     {
         short sin_family;    /* must be AS_INET  */
@@ -158,3 +160,27 @@ Victoria Mengqi LIU
         char sin_zero[8];    /* Not used, must be zero */
     };
 
+
+    struct in_addr
+    {
+        in_addr_t s_addr;
+    }
+
+
+    /******* GENERIC SOCKET ADDRESS *******/
+    struct sockaddr
+    {
+        unsigned short sa_family;	/* protocol family */
+        char sa_data[14];	/* protocol-specific address, up to 14 bytes */
+    }
+    
+    
+#### WELL-KNOWN PORT
+
++ port 7: Echo server
++ port 21: FTP server
++ port 23: Telenet server
++ port 25: Mail server
++ port 67: DHCP server
++ port 68: DHCP clientw
++ port 80: Web server
