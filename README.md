@@ -184,3 +184,7 @@ Victoria Mengqi LIU
 + port 67: DHCP server
 + port 68: DHCP clientw
 + port 80: Web server
++ port 110: TCP port for POP3
++ port 143: TCP port for IMAP
++ port 161: UDP port for SNMP Get/Set Messages
++ port 162: UDP port for SNMP Trap Messages 
